@@ -136,7 +136,7 @@ export default function AIAssistant() {
               <div className="ai-panel-title">MediZyra Health Assistant</div>
               <div className="ai-panel-subtitle">
                 <span className="ai-panel-dot" />
-                <span>Online · Powered by Gemini AI</span>
+                <span>Online · Powered by MediZyra</span>
               </div>
             </div>
             <button
