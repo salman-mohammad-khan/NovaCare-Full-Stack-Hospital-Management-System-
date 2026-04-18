@@ -1,4 +1,4 @@
-# MediZyra Healthcare Solutions
+﻿# NovaCare Healthcare Solutions
 
 A full-stack hospital management system built with the MERN stack (MongoDB, Express, React, Node.js), deployed on AWS with an integrated AI health assistant powered by AWS Bedrock (DeepSeek).
 
@@ -141,7 +141,7 @@ Open `http://localhost:5173` in your browser.
 ```env
 # MongoDB
 MONGO_URI=mongodb://127.0.0.1:27017
-MONGO_DB_NAME=medizyra
+MONGO_DB_NAME=NovaCare
 PORT=4000
 
 # AWS Bedrock — AI assistant
@@ -162,9 +162,9 @@ The database is pre-seeded with the following accounts:
 
 | Role | Email | Password |
 |---|---|---|
-| Admin | `admin@medizyra.demo` | `Admin@123` |
-| Doctor | `aisha@medizyra.demo` | `Doctor@123` |
-| Patient | `patient@medizyra.demo` | `Patient@123` |
+| Admin | `admin@NovaCare.demo` | `Admin@123` |
+| Doctor | `aisha@NovaCare.demo` | `Doctor@123` |
+| Patient | `patient@NovaCare.demo` | `Patient@123` |
 
 Additional doctor and patient accounts are included in the seed data.
 

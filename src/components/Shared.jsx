@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { formatCurrency } from "../lib/appointments";
 
-export function SectionHeading({ eyebrow = "MediZyra", title, subtitle, align = "left" }) {
+export function SectionHeading({ eyebrow = "NovaCare", title, subtitle, align = "left" }) {
   return (
     <div className={`section-heading section-heading-${align}`}>
       <p className="eyebrow">{eyebrow}</p>

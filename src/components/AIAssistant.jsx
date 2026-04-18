@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 const WELCOME = {
   role: "assistant",
   content:
-    "Hi! I'm MediZyra's health assistant. Tell me what symptoms or concerns you're experiencing and I'll help you find the right specialist and guide your appointment booking.",
+    "Hi! I'm NovaCare's health assistant. Tell me what symptoms or concerns you're experiencing and I'll help you find the right specialist and guide your appointment booking.",
 };
 
 function randomSessionId() {
@@ -126,17 +126,17 @@ export default function AIAssistant() {
       </button>
 
       {isOpen && (
-        <div className="ai-panel" role="dialog" aria-label="MediZyra Health Assistant">
+        <div className="ai-panel" role="dialog" aria-label="NovaCare Health Assistant">
           {/* Header */}
           <div className="ai-panel-header">
             <div className="ai-panel-avatar">
               <span>🩺</span>
             </div>
             <div className="ai-panel-title-group">
-              <div className="ai-panel-title">MediZyra Health Assistant</div>
+              <div className="ai-panel-title">NovaCare Health Assistant</div>
               <div className="ai-panel-subtitle">
                 <span className="ai-panel-dot" />
-                <span>Online · Powered by MediZyra</span>
+                <span>Online · Powered by NovaCare</span>
               </div>
             </div>
             <button
@@ -158,7 +158,7 @@ export default function AIAssistant() {
                 )}
                 <div className="ai-msg-wrapper">
                   <span className={`ai-msg-label ai-msg-label-${msg.role}`}>
-                    {msg.role === "user" ? "You" : "MediZyra AI"}
+                    {msg.role === "user" ? "You" : "NovaCare AI"}
                   </span>
                   <div className={`ai-bubble ai-bubble-${msg.role}`}>
                     {msg.content}
@@ -171,7 +171,7 @@ export default function AIAssistant() {
               <div className="ai-msg-row ai-msg-row-assistant">
                 <div className="ai-msg-avatar">🩺</div>
                 <div className="ai-msg-wrapper">
-                  <span className="ai-msg-label ai-msg-label-assistant">MediZyra AI</span>
+                  <span className="ai-msg-label ai-msg-label-assistant">NovaCare AI</span>
                   <div className="ai-bubble ai-bubble-assistant ai-typing">
                     <span />
                     <span />

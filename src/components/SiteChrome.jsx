@@ -33,7 +33,7 @@ export function SiteHeader() {
     <header className="site-header">
       <div className="container header-inner">
         <Link className="brand-lockup" to="/">
-          <img alt="MediZyra logo" className="brand-mark" src={brandLogo} />
+          <img alt="NovaCare logo" className="brand-mark" src={brandLogo} />
           <div className="brand-copy">
             <p className="eyebrow">Care operations platform</p>
             <h1>{brand.name}</h1>
@@ -99,14 +99,14 @@ export function SiteFooter() {
       <div className="container footer-grid">
         <div>
           <div className="footer-brand">
-            <img alt="MediZyra logo" className="brand-mark" src={brandLogo} />
+            <img alt="NovaCare logo" className="brand-mark" src={brandLogo} />
             <div>
               <h2>{brand.name}</h2>
               <p>{brand.tagline}</p>
             </div>
           </div>
           <p className="footer-copy">
-            MediZyra is designed to present appointments, patient communication,
+            NovaCare is designed to present appointments, patient communication,
             doctor notes, and admin triage in a clear digital care experience.
           </p>
         </div>

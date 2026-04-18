@@ -1000,12 +1000,12 @@ async function start() {
   });
 
   app.listen(port, () => {
-    console.log(`MediZyra API listening on http://127.0.0.1:${port}`);
+    console.log(`NovaCare API listening on http://127.0.0.1:${port}`);
   });
 }
 
 start().catch(async (error) => {
-  console.error("Failed to start MediZyra API", error);
+  console.error("Failed to start NovaCare API", error);
   await closeDb();
   process.exit(1);
 });

@@ -1,6 +1,6 @@
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 
-const SENDER = "MediZyra <medizyranoreply@gmail.com>";
+const SENDER = "NovaCare <NovaCarenoreply@gmail.com>";
 
 let _ses = null;
 function getSESClient() {
@@ -11,13 +11,13 @@ function getSESClient() {
 export async function sendOTPEmail({ to, otp, purpose }) {
   const isLogin = purpose === "login";
   const subject = isLogin
-    ? "Your MediZyra Login OTP"
-    : "Verify your MediZyra email address";
+    ? "Your NovaCare Login OTP"
+    : "Verify your NovaCare email address";
 
   const htmlBody = `
     <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px;">
       <div style="background:linear-gradient(135deg,#5b21b6,#4c1d95);border-radius:12px;padding:24px 28px;margin-bottom:24px;">
-        <h1 style="color:#fff;margin:0;font-size:22px;letter-spacing:-0.5px;">MediZyra Healthcare</h1>
+        <h1 style="color:#fff;margin:0;font-size:22px;letter-spacing:-0.5px;">NovaCare Healthcare</h1>
         <p style="color:rgba(255,255,255,0.75);margin:4px 0 0;font-size:13px;">Your trusted health management platform</p>
       </div>
 
@@ -38,7 +38,7 @@ export async function sendOTPEmail({ to, otp, purpose }) {
 
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;" />
       <p style="color:#9ca3af;font-size:11px;text-align:center;">
-        MediZyra Healthcare Solutions · This is an automated email, please do not reply.
+        NovaCare Healthcare Solutions · This is an automated email, please do not reply.
       </p>
     </div>
   `;
@@ -52,7 +52,7 @@ export async function sendOTPEmail({ to, otp, purpose }) {
         Body: {
           Html: { Data: htmlBody, Charset: "UTF-8" },
           Text: {
-            Data: `Your MediZyra OTP is: ${otp}\nValid for 10 minutes.\nDo not share this with anyone.`,
+            Data: `Your NovaCare OTP is: ${otp}\nValid for 10 minutes.\nDo not share this with anyone.`,
             Charset: "UTF-8",
           },
         },

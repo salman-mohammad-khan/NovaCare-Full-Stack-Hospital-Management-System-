@@ -7,7 +7,7 @@ export default function NotFoundPage() {
       <div className="container">
         <EmptyState
           title="That page is not available"
-          description="Return to the MediZyra overview or open the portal from the main navigation."
+          description="Return to the NovaCare overview or open the portal from the main navigation."
           action={
             <Link className="button button-primary" to="/">
               Back to homepage

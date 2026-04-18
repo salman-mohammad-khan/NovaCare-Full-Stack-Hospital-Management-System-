@@ -4,7 +4,7 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { seedDoctors } from "./seedData.js";
 
 const MAX_RETRIES  = 3;
-const DYNAMO_TABLE = "medizyra-ai-conversations";
+const DYNAMO_TABLE = "NovaCare-ai-conversations";
 
 // All env vars read LAZILY inside functions so dotenv has time to load first.
 // (ESM hoisting means top-level code in this file runs before dotenv.config()
@@ -44,9 +44,9 @@ function buildDoctorCatalogue(doctors) {
     .join("\n");
 }
 
-const SYSTEM_PROMPT = `You are MediZyra's patient health assistant. Your role is to help patients understand their symptoms and connect them with the right specialist from MediZyra's doctor catalogue.
+const SYSTEM_PROMPT = `You are NovaCare's patient health assistant. Your role is to help patients understand their symptoms and connect them with the right specialist from NovaCare's doctor catalogue.
 
-AVAILABLE DOCTORS AT MEDIZYRA:
+AVAILABLE DOCTORS AT NovaCare:
 ${buildDoctorCatalogue(seedDoctors)}
 
 YOUR BEHAVIOUR RULES:

@@ -21,7 +21,7 @@ export default function AuthPage() {
   const [registerStep, setRegisterStep] = useState("form");
 
   // Forms
-  const [loginForm, setLoginForm] = useState({ email: "patient@medizyra.demo", password: "Patient@123" });
+  const [loginForm, setLoginForm] = useState({ email: "patient@novacare.demo", password: "Patient@123" });
   const [registerForm, setRegisterForm] = useState({ name: "", email: "", phone: "", password: "" });
 
   // OTP login state

@@ -33,7 +33,7 @@ export default function HomePage() {
             <div className="hero-copy">
               <p className="eyebrow">Integrated patient care coordination</p>
               <h2>
-                MediZyra brings appointments, triage, and doctor follow-up into one
+                NovaCare brings appointments, triage, and doctor follow-up into one
                 clear care operations workspace.
               </h2>
               <p className="lead">
@@ -139,7 +139,7 @@ export default function HomePage() {
           <div className="split-section-full">
             <SectionHeading
               title="Professional care platform features"
-              subtitle="MediZyra is designed to feel like a polished healthcare service website while still supporting practical care operations behind the scenes."
+              subtitle="NovaCare is designed to feel like a polished healthcare service website while still supporting practical care operations behind the scenes."
             />
             <div className="card-grid three-up">
               {formalFeatures.map((item) => (

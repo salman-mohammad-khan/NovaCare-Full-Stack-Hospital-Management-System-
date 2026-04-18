@@ -57,7 +57,7 @@ export default function ContactPage() {
         <article className="panel contact-panel">
           <SectionHeading
             eyebrow="Patient support"
-            title="Contact the MediZyra care desk"
+            title="Contact the NovaCare care desk"
             subtitle="Send a service question, concern, or support request and the admin team will see it inside the portal."
           />
 

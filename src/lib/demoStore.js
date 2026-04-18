@@ -1,7 +1,7 @@
 import { doctorCatalog, seedAppointments, seedUsers } from "../data/siteData";
 
-export const APP_STATE_KEY = "medizyra:hms-state:v1";
-export const SESSION_KEY = "medizyra:session:v1";
+export const APP_STATE_KEY = "NovaCare:hms-state:v1";
+export const SESSION_KEY = "NovaCare:session:v1";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
