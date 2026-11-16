@@ -797,9 +797,40 @@ export const seedAppointments = [
   },
 ];
 
+// Seed visits were written around 2026-03-27; shift every date so the demo always looks current.
+const SEED_ANCHOR = new Date("2026-03-27T00:00:00Z");
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function shiftDateString(value, offsetDays) {
+  if (!value) {
+    return value;
+  }
+
+  const parsed = new Date(value.length === 10 ? `${value}T00:00:00Z` : value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  const shifted = new Date(parsed.getTime() + offsetDays * DAY_MS);
+  return value.length === 10 ? shifted.toISOString().slice(0, 10) : shifted.toISOString();
+}
+
+function createShiftedAppointments() {
+  const todayUtc = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+  const offsetDays = Math.round((todayUtc.getTime() - SEED_ANCHOR.getTime()) / DAY_MS);
+
+  return clone(seedAppointments).map((item) => ({
+    ...item,
+    appointmentDate: shiftDateString(item.appointmentDate, offsetDays),
+    followUpDate: shiftDateString(item.followUpDate, offsetDays),
+    bookedAt: shiftDateString(item.bookedAt, offsetDays),
+    updatedAt: shiftDateString(item.updatedAt, offsetDays),
+  }));
+}
+
 export function createSeedState() {
   return {
-    appointments: clone(seedAppointments),
+    appointments: createShiftedAppointments(),
     contactMessages: [],
     doctors: clone(seedDoctors),
     users: clone(seedUsers),

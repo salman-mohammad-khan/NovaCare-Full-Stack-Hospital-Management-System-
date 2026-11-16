@@ -1,11 +1,34 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+export const TOKEN_KEY = "NovaCare:token:v1";
+
+export function getToken() {
+  try {
+    return window.localStorage.getItem(TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setToken(token) {
+  try {
+    if (token) {
+      window.localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      window.localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch { /* ignore */ }
+}
 
 async function request(path, options = {}) {
+  const token = getToken();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers ?? {}),
+  };
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers ?? {}),
-    },
+    headers,
     ...options,
   });
 
@@ -13,6 +36,11 @@ async function request(path, options = {}) {
   const payload = text ? JSON.parse(text) : {};
 
   if (!response.ok) {
+    if (response.status === 401 && token && !path.startsWith("/auth/")) {
+      setToken("");
+      window.dispatchEvent(new Event("novacare:session-expired"));
+    }
+
     throw new Error(payload.error ?? "The request could not be completed.");
   }
 
@@ -71,16 +99,10 @@ export const api = {
       method: "POST",
     });
   },
-  async sendOtp({ email, purpose }) {
-    return request("/auth/send-otp", {
-      body: JSON.stringify({ email, purpose }),
-      method: "POST",
-    });
-  },
-  async verifyOtp({ email, otp, purpose }) {
-    return request("/auth/verify-otp", {
-      body: JSON.stringify({ email, otp, purpose }),
-      method: "POST",
+  async toggleDoctorAvailability(doctorId, payload) {
+    return request(`/doctors/${doctorId}/availability`, {
+      body: JSON.stringify(payload),
+      method: "PATCH",
     });
   },
   async resetDemoData() {

@@ -90,5 +90,6 @@ export function resetStoredDemo() {
   const seed = createSeedState();
   window.localStorage.setItem(APP_STATE_KEY, JSON.stringify(seed));
   window.localStorage.removeItem(SESSION_KEY);
+  window.localStorage.removeItem("NovaCare:token:v1");
   return seed;
 }
