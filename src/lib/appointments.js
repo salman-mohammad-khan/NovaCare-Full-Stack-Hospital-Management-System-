@@ -1,4 +1,3 @@
-export const DEMO_NOW = new Date("2026-03-27T09:00:00");
 
 export function formatCurrency(amount) {
   return new Intl.NumberFormat("en-IN", {
@@ -47,7 +46,7 @@ export function parseAppointmentDateTime(date, time) {
 export function isUpcomingAppointment(appointment) {
   return (
     ["Requested", "Confirmed"].includes(appointment.status) &&
-    parseAppointmentDateTime(appointment.appointmentDate, appointment.appointmentSlot) >= DEMO_NOW
+    parseAppointmentDateTime(appointment.appointmentDate, appointment.appointmentSlot) >= new Date()
   );
 }
 

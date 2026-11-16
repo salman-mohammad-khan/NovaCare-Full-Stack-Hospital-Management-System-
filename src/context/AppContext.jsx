@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../lib/api";
+import { api, getToken, setToken } from "../lib/api";
 import { attachDoctorPhotos } from "../lib/doctorMedia";
 import { createSeedState, readStoredSession, writeStoredSession } from "../lib/demoStore";
 import { AppContext } from "./useAppContext";
@@ -10,6 +10,24 @@ const EMPTY_STATE = {
   doctors: [],
   users: [],
 };
+
+function decodeJwtSubject(token) {
+  try {
+    const payload = token.split(".")[1];
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return json.sub ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function resolveInitialSession() {
+  const token = getToken();
+  if (token) {
+    return decodeJwtSubject(token) || readStoredSession();
+  }
+  return readStoredSession();
+}
 
 function asString(value, fallback = "") {
   return typeof value === "string" ? value : value == null ? fallback : String(value);
@@ -56,6 +74,7 @@ function normalizeDoctor(doctor) {
     credentials: asString(doctor?.credentials),
     tone: asString(doctor?.tone, "teal"),
     avatarLabel: asString(doctor?.avatarLabel),
+    isAvailable: doctor?.isAvailable !== false,
     schedule: normalizeSchedule(doctor?.schedule),
   };
 }
@@ -119,8 +138,47 @@ function normalizeAppState(state) {
   return {
     appointments: (state?.appointments ?? []).map(normalizeAppointment),
     contactMessages: (state?.contactMessages ?? []).map(normalizeContactMessage),
-    doctors: attachDoctorPhotos((state?.doctors ?? []).map(normalizeDoctor)),
+    doctors: attachDoctorPhotos((state?.doctors ?? []).map(normalizeDoctor).map(refreshDoctorSchedule)),
     users: (state?.users ?? []).map(normalizeUser),
+    stats: state?.stats ?? null,
+  };
+}
+
+const DEFAULT_DOCTOR_SLOTS = [
+  ["10:00 AM", "01:00 PM", "04:00 PM"],
+  ["09:30 AM", "12:30 PM", "03:30 PM"],
+  ["11:00 AM", "02:00 PM", "05:00 PM"],
+];
+
+function formatScheduleLabel(date) {
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(date);
+}
+
+function refreshDoctorSchedule(doctor) {
+  const today = new Date();
+  const schedule = Array.from({ length: 3 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() + index + 1);
+    const existingEntry = doctor.schedule?.[index];
+
+    return {
+      date: date.toISOString().slice(0, 10),
+      label: formatScheduleLabel(date),
+      slots:
+        Array.isArray(existingEntry?.slots) && existingEntry.slots.length
+          ? existingEntry.slots
+          : DEFAULT_DOCTOR_SLOTS[index % DEFAULT_DOCTOR_SLOTS.length],
+    };
+  });
+
+  return {
+    ...doctor,
+    schedule,
+    nextAvailable: `${schedule[0].label} at ${schedule[0].slots[0]}`,
   };
 }
 
@@ -130,7 +188,7 @@ function asErrorMessage(error) {
 
 export function AppProvider({ children }) {
   const [appState, setAppState] = useState(EMPTY_STATE);
-  const [sessionUserId, setSessionUserId] = useState(readStoredSession);
+  const [sessionUserId, setSessionUserId] = useState(resolveInitialSession);
   const [isHydrating, setIsHydrating] = useState(true);
   const [backendError, setBackendError] = useState("");
 
@@ -138,6 +196,12 @@ export function AppProvider({ children }) {
     try {
       const state = await api.getAppState();
       setAppState(normalizeAppState(state));
+      // A signed-in caller always gets at least their own user back. If a stored token
+      // comes back with none, the server no longer accepts it, so drop it and sign out.
+      if (getToken() && !(state?.users ?? []).length) {
+        setToken("");
+        setSessionUserId("");
+      }
       setBackendError("");
       return { ok: true, state };
     } catch (error) {
@@ -162,13 +226,25 @@ export function AppProvider({ children }) {
     writeStoredSession(sessionUserId);
   }, [sessionUserId]);
 
+  useEffect(() => {
+    const handleExpired = () => {
+      setSessionUserId("");
+      void refreshAppState({ allowSeedFallback: true });
+    };
+
+    window.addEventListener("novacare:session-expired", handleExpired);
+    return () => window.removeEventListener("novacare:session-expired", handleExpired);
+  }, [refreshAppState]);
+
   const currentUser =
     appState.users.find((user) => user.id === sessionUserId) ?? null;
 
   const login = useCallback(async ({ email, password }) => {
     try {
       const result = await api.login({ email, password });
+      setToken(result.token);
       setSessionUserId(result.user.id);
+      await refreshAppState();
       return result;
     } catch (error) {
       return {
@@ -176,12 +252,14 @@ export function AppProvider({ children }) {
         error: asErrorMessage(error),
       };
     }
-  }, []);
+  }, [refreshAppState]);
 
   const logout = useCallback(async () => {
+    setToken("");
     setSessionUserId("");
+    await refreshAppState({ allowSeedFallback: true });
     return { ok: true };
-  }, []);
+  }, [refreshAppState]);
 
   const registerPatient = useCallback(
     async (form) => {
@@ -189,6 +267,7 @@ export function AppProvider({ children }) {
         const result = await api.registerPatient(form);
         // If email verification is pending, don't log the user in yet
         if (result.ok && !result.awaitingVerification) {
+          setToken(result.token);
           setSessionUserId(result.user.id);
           await refreshAppState();
         }
@@ -203,35 +282,10 @@ export function AppProvider({ children }) {
     [refreshAppState],
   );
 
-  const sendOtp = useCallback(async ({ email, purpose }) => {
-    try {
-      return await api.sendOtp({ email, purpose });
-    } catch (error) {
-      return { ok: false, error: asErrorMessage(error) };
-    }
-  }, []);
-
-  const verifyOtp = useCallback(
-    async ({ email, otp, purpose }) => {
-      try {
-        const result = await api.verifyOtp({ email, otp, purpose });
-        setSessionUserId(result.user.id);
-        await refreshAppState();
-        return result;
-      } catch (error) {
-        return { ok: false, error: asErrorMessage(error) };
-      }
-    },
-    [refreshAppState],
-  );
-
   const bookAppointment = useCallback(
     async (form) => {
       try {
-        const result = await api.bookAppointment({
-          actorUserId: sessionUserId,
-          ...form,
-        });
+        const result = await api.bookAppointment(form);
         await refreshAppState();
         return result;
       } catch (error) {
@@ -241,7 +295,7 @@ export function AppProvider({ children }) {
         };
       }
     },
-    [refreshAppState, sessionUserId],
+    [refreshAppState],
   );
 
   const updateAppointmentByAdmin = useCallback(
@@ -255,7 +309,6 @@ export function AppProvider({ children }) {
     }) => {
       try {
         const result = await api.updateAppointmentByAdmin(appointmentId, {
-          actorUserId: sessionUserId,
           adminSummary,
           appointmentDate,
           appointmentSlot,
@@ -271,7 +324,7 @@ export function AppProvider({ children }) {
         };
       }
     },
-    [refreshAppState, sessionUserId],
+    [refreshAppState],
   );
 
   const updateAppointmentByDoctor = useCallback(
@@ -284,7 +337,6 @@ export function AppProvider({ children }) {
     }) => {
       try {
         const result = await api.updateAppointmentByDoctor(appointmentId, {
-          actorUserId: sessionUserId,
           doctorSummary,
           followUpDate,
           prescriptionItems,
@@ -299,16 +351,13 @@ export function AppProvider({ children }) {
         };
       }
     },
-    [refreshAppState, sessionUserId],
+    [refreshAppState],
   );
 
   const submitContactMessage = useCallback(
     async (form) => {
       try {
-        const result = await api.submitContactMessage({
-          actorUserId: sessionUserId,
-          ...form,
-        });
+        const result = await api.submitContactMessage(form);
         await refreshAppState();
         return result;
       } catch (error) {
@@ -318,15 +367,30 @@ export function AppProvider({ children }) {
         };
       }
     },
-    [refreshAppState, sessionUserId],
+    [refreshAppState],
   );
 
   const saveDoctorProfile = useCallback(
     async (form) => {
       try {
-        const result = await api.saveDoctorProfile({
-          actorUserId: sessionUserId,
-          form,
+        const result = await api.saveDoctorProfile({ form });
+        await refreshAppState();
+        return result;
+      } catch (error) {
+        return {
+          ok: false,
+          error: asErrorMessage(error),
+        };
+      }
+    },
+    [refreshAppState],
+  );
+
+  const toggleDoctorAvailability = useCallback(
+    async (doctorId, isAvailable) => {
+      try {
+        const result = await api.toggleDoctorAvailability(doctorId, {
+          isAvailable,
         });
         await refreshAppState();
         return result;
@@ -337,12 +401,13 @@ export function AppProvider({ children }) {
         };
       }
     },
-    [refreshAppState, sessionUserId],
+    [refreshAppState],
   );
 
   const resetDemoData = useCallback(async () => {
     try {
       const result = await api.resetDemoData();
+      setToken("");
       setSessionUserId("");
       await refreshAppState({ allowSeedFallback: true });
       return result;
@@ -370,18 +435,19 @@ export function AppProvider({ children }) {
       registerPatient,
       resetDemoData,
       saveDoctorProfile,
-      sendOtp,
       submitContactMessage,
+      toggleDoctorAvailability,
       updateAppointmentByDoctor,
       updateAppointmentByAdmin,
+      stats: appState.stats,
       users: appState.users,
-      verifyOtp,
     }),
     [
       appState.appointments,
       appState.contactMessages,
       appState.doctors,
       appState.users,
+      appState.stats,
       backendError,
       bookAppointment,
       currentUser,
@@ -392,11 +458,10 @@ export function AppProvider({ children }) {
       registerPatient,
       resetDemoData,
       saveDoctorProfile,
-      sendOtp,
       submitContactMessage,
+      toggleDoctorAvailability,
       updateAppointmentByDoctor,
       updateAppointmentByAdmin,
-      verifyOtp,
     ],
   );
 

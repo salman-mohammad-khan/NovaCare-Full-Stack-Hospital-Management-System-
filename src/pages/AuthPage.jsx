@@ -1,393 +1,220 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { demoCredentials } from "../data/siteData";
 import { useAppContext } from "../context/useAppContext";
-import { SectionHeading } from "../components/Shared";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
+import { useToast } from "../context/ToastContext";
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { login, registerPatient, sendOtp, verifyOtp } = useAppContext();
+  const { currentUser, login, registerPatient, logout } = useAppContext();
+  const toast = useToast();
 
-  // Top-level tab: "signin" | "register"
   const [mode, setMode] = useState("signin");
 
-  // Signin sub-mode: "password" | "otp"
-  const [loginMethod, setLoginMethod] = useState("password");
-
-  // OTP login steps: "email" (enter email) | "code" (enter OTP)
-  const [otpLoginStep, setOtpLoginStep] = useState("email");
-
-  // Register steps: "form" (fill details) | "verify" (enter OTP)
-  const [registerStep, setRegisterStep] = useState("form");
-
-  // Forms
   const [loginForm, setLoginForm] = useState({ email: "patient@novacare.demo", password: "Patient@123" });
   const [registerForm, setRegisterForm] = useState({ name: "", email: "", phone: "", password: "" });
+  const [registerErrors, setRegisterErrors] = useState({});
 
-  // OTP login state
-  const [otpEmail, setOtpEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-
-  // Registration OTP verify state
-  const [pendingEmail, setPendingEmail] = useState("");
-  const [registerOtpCode, setRegisterOtpCode] = useState("");
-
-  // Shared UI state
-  const [feedback, setFeedback] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function clearMessages() {
-    setFeedback("");
-    setError("");
-  }
+  function clearMessages() { setError(""); setRegisterErrors({}); }
+  function switchMode(newMode) { setMode(newMode); clearMessages(); }
 
-  function switchMode(newMode) {
-    setMode(newMode);
-    setLoginMethod("password");
-    setOtpLoginStep("email");
-    setRegisterStep("form");
-    setOtpCode("");
-    setOtpEmail("");
-    setRegisterOtpCode("");
-    clearMessages();
-  }
-
-  // ── Password login ──────────────────────────────────────────────────────────
-
-  const handleLoginChange = (field) => (e) =>
-    setLoginForm((f) => ({ ...f, [field]: e.target.value }));
+  const handleLoginChange = (field) => (e) => setLoginForm((f) => ({ ...f, [field]: e.target.value }));
 
   const handlePasswordLogin = async (e) => {
-    e.preventDefault();
-    clearMessages();
-    setIsSubmitting(true);
+    e.preventDefault(); clearMessages(); setIsSubmitting(true);
     const result = await login(loginForm);
     setIsSubmitting(false);
     if (!result.ok) { setError(result.error); return; }
-    setFeedback(`Signed in as ${result.user.role}. Redirecting...`);
-    setTimeout(() => navigate("/portal"), 400);
+    setTimeout(() => navigate("/portal", { replace: true }), 400);
   };
 
-  // ── OTP login: step 1 — send OTP ────────────────────────────────────────────
-
-  const handleSendLoginOtp = async (e) => {
-    e.preventDefault();
-    clearMessages();
-    if (!otpEmail.trim()) { setError("Please enter your email address."); return; }
-    setIsSubmitting(true);
-    const result = await sendOtp({ email: otpEmail.trim(), purpose: "login" });
-    setIsSubmitting(false);
-    if (!result.ok) { setError(result.error); return; }
-    setFeedback(`OTP sent to ${otpEmail.trim()}. Check your inbox.`);
-    setOtpLoginStep("code");
-  };
-
-  // ── OTP login: step 2 — verify OTP ─────────────────────────────────────────
-
-  const handleVerifyLoginOtp = async (e) => {
-    e.preventDefault();
-    clearMessages();
-    if (!otpCode.trim()) { setError("Please enter the OTP."); return; }
-    setIsSubmitting(true);
-    const result = await verifyOtp({ email: otpEmail.trim(), otp: otpCode.trim(), purpose: "login" });
-    setIsSubmitting(false);
-    if (!result.ok) { setError(result.error); return; }
-    setFeedback("Signed in successfully. Redirecting...");
-    setTimeout(() => navigate("/portal"), 400);
-  };
-
-  // ── Registration: step 1 — fill form ───────────────────────────────────────
-
-  const handleRegisterChange = (field) => (e) =>
+  const handleRegisterChange = (field) => (e) => {
     setRegisterForm((f) => ({ ...f, [field]: e.target.value }));
+    setRegisterErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const validateRegisterForm = () => {
+    const errs = {};
+    const name = registerForm.name.trim();
+    const email = registerForm.email.trim();
+    const phone = registerForm.phone.trim();
+    const password = registerForm.password;
+
+    if (!name) errs.name = "Full name: This field is required.";
+    else if (/^\d/.test(name)) errs.name = "Full name cannot start with a number.";
+
+    if (!email) errs.email = "Email: This field is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Please enter a valid email address with @ and a domain such as .com.";
+
+    if (!phone) errs.phone = "Phone: This field is required.";
+    else if (phone.replace(/\D/g, "").length < 10) errs.phone = "Please enter a valid mobile number with at least 10 digits.";
+
+    if (!password) errs.password = "Password: This field is required.";
+    else if (password.length < 6 || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password))
+      errs.password = "Password must be at least 6 characters long and include at least one number and one special character.";
+
+    setRegisterErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const handleRegister = async (e) => {
-    e.preventDefault();
-    clearMessages();
+    e.preventDefault(); clearMessages();
+    if (!validateRegisterForm()) return;
     setIsSubmitting(true);
     const result = await registerPatient(registerForm);
     setIsSubmitting(false);
     if (!result.ok) { setError(result.error); return; }
-    if (result.awaitingVerification) {
-      setPendingEmail(registerForm.email);
-      setRegisterStep("verify");
-      setFeedback(`Account created! A 6-digit verification code was sent to ${registerForm.email}.`);
-    } else {
-      setFeedback("Patient profile created. Redirecting...");
-      setTimeout(() => navigate("/portal"), 400);
-    }
+    toast.success("Patient profile created. Redirecting to your portal...");
+    setTimeout(() => navigate("/portal", { replace: true }), 400);
   };
 
-  // ── Registration: step 2 — verify OTP ──────────────────────────────────────
+  const activeStyles = "bg-primary-600 text-white rounded-lg";
+  const inactiveStyles = "text-ink-soft hover:text-ink rounded-lg";
 
-  const handleVerifyRegistration = async (e) => {
-    e.preventDefault();
-    clearMessages();
-    if (!registerOtpCode.trim()) { setError("Please enter the verification code."); return; }
-    setIsSubmitting(true);
-    const result = await verifyOtp({ email: pendingEmail, otp: registerOtpCode.trim(), purpose: "register" });
-    setIsSubmitting(false);
-    if (!result.ok) { setError(result.error); return; }
-    setFeedback("Email verified! Redirecting to your portal...");
-    setTimeout(() => navigate("/portal"), 400);
-  };
-
-  const handleResendRegisterOtp = async () => {
-    clearMessages();
-    setIsSubmitting(true);
-    const result = await sendOtp({ email: pendingEmail, purpose: "register" });
-    setIsSubmitting(false);
-    if (!result.ok) { setError(result.error); return; }
-    setFeedback("A new verification code was sent to your email.");
-  };
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+  if (currentUser) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full text-center">
+          <div className="w-14 h-14 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 flex items-center justify-center text-2xl mx-auto mb-4">
+            &#128274;
+          </div>
+          <h2 className="text-xl font-bold text-ink mb-2">You&apos;re already signed in</h2>
+          <p className="text-sm text-ink-soft mb-1">
+            Signed in as <strong className="text-ink">{currentUser.name}</strong> ({currentUser.role}).
+          </p>
+          <p className="text-sm text-ink-soft mb-6">
+            Sign out first if you want to switch to another account.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Link
+              to="/portal"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
+            >
+              Go to my portal
+            </Link>
+            <button
+              onClick={async () => {
+                await logout();
+                toast.success("Signed out. You can sign in again.");
+              }}
+              className="px-5 py-2.5 border border-custom rounded-lg text-sm font-medium text-ink-soft hover:text-ink hover:bg-surface-alt dark:hover:bg-slate-800 transition-colors"
+            >
+              Sign out &amp; switch account
+            </button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <section className="section">
-      <div className="container auth-layout">
-        <article className="panel auth-panel">
-          <SectionHeading
-            title="Access the demo portal"
-            subtitle="Use seeded email accounts for admin and doctor testing, or create a fresh patient profile."
-          />
+    <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
+      <Card>
+        <h2 className="text-xl font-bold text-ink mb-1">Access the demo portal</h2>
+        <p className="text-sm text-ink-soft mb-6">Use seeded accounts for admin/doctor testing, or create a fresh patient profile.</p>
 
-          {/* Mode tabs */}
-          <div className="auth-toggle">
+        <div className="flex gap-1 p-1 bg-surface-alt dark:bg-slate-800 rounded-lg mb-6">
+          {["signin", "register"].map((m) => (
             <button
-              className={`auth-tab ${mode === "signin" ? "auth-tab-active" : ""}`}
+              key={m}
               type="button"
-              onClick={() => switchMode("signin")}
+              onClick={() => switchMode(m)}
+              className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === m ? activeStyles : inactiveStyles}`}
             >
-              Sign in
+              {m === "signin" ? "Sign in" : "Register patient"}
             </button>
-            <button
-              className={`auth-tab ${mode === "register" ? "auth-tab-active" : ""}`}
-              type="button"
-              onClick={() => switchMode("register")}
-            >
-              Register patient
-            </button>
-          </div>
+          ))}
+        </div>
 
-          {/* ── SIGN IN ── */}
-          {mode === "signin" && (
-            <>
-              {/* Login method sub-tabs */}
-              <div className="auth-method-toggle">
+        {mode === "signin" && (
+          <>
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-ink-muted mb-1">Email</label>
+                <input type="email" value={loginForm.email} onChange={handleLoginChange("email")} className="w-full px-3 py-2 text-sm rounded-lg border border-custom dark:border-slate-600 bg-surface dark:bg-slate-900 text-ink focus:outline-none focus:ring-2 focus:ring-primary-500/40" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-ink-muted mb-1">Password</label>
+                <input type="password" value={loginForm.password} onChange={handleLoginChange("password")} className="w-full px-3 py-2 text-sm rounded-lg border border-custom dark:border-slate-600 bg-surface dark:bg-slate-900 text-ink focus:outline-none focus:ring-2 focus:ring-primary-500/40" />
+              </div>
+              {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+              <Button type="submit" loading={isSubmitting} className="w-full">
+                {isSubmitting ? "Signing in..." : "Enter portal"}
+              </Button>
+            </form>
+
+          </>
+        )}
+
+        {mode === "register" && (
+          <form onSubmit={handleRegister} className="space-y-4" noValidate>
+            {[
+              { key: "name", label: "Full name", type: "text", placeholder: "e.g. Rahul Verma" },
+              { key: "email", label: "Email", type: "email", placeholder: "you@example.com" },
+              { key: "phone", label: "Mobile number", type: "tel", placeholder: "10-digit mobile number" },
+              { key: "password", label: "Password", type: "password", placeholder: "6+ chars, 1 number, 1 special char" },
+            ].map((field) => (
+              <div key={field.key}>
+                <label className="block text-xs font-medium text-ink-muted mb-1">{field.label}</label>
+                <input
+                  type={field.type}
+                  value={registerForm[field.key]}
+                  onChange={handleRegisterChange(field.key)}
+                  placeholder={field.placeholder}
+                  className={`w-full px-3 py-2 text-sm rounded-lg border bg-surface dark:bg-slate-900 text-ink focus:outline-none focus:ring-2 focus:ring-primary-500/40 ${
+                    registerErrors[field.key]
+                      ? "border-red-400 dark:border-red-600 ring-2 ring-red-500/20"
+                      : "border-custom dark:border-slate-600"
+                  }`}
+                />
+                {registerErrors[field.key] && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{registerErrors[field.key]}</p>
+                )}
+              </div>
+            ))}
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            <Button type="submit" loading={isSubmitting} className="w-full">
+              {isSubmitting ? "Creating account..." : "Create patient account"}
+            </Button>
+          </form>
+        )}
+      </Card>
+
+      <Card>
+        <h3 className="text-lg font-semibold text-ink mb-1">Seeded demo credentials</h3>
+        <p className="text-sm text-ink-soft mb-4">These accounts are available immediately for platform testing.</p>
+        <div className="space-y-3">
+          {demoCredentials.map((cred) => (
+            <div key={cred.role} className="p-3 rounded-lg bg-surface-alt dark:bg-slate-800 border border-custom dark:border-slate-700/60">
+              <p className="text-sm font-semibold text-ink capitalize">{cred.role}</p>
+              <p className="text-xs text-ink-muted mt-0.5">{cred.email}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <code className="inline-block text-xs bg-surface dark:bg-slate-700 px-2 py-0.5 rounded text-ink-soft font-mono">{cred.password}</code>
                 <button
-                  className={`auth-method-tab ${loginMethod === "password" ? "auth-method-tab-active" : ""}`}
                   type="button"
-                  onClick={() => { setLoginMethod("password"); clearMessages(); }}
+                  onClick={() => {
+                    setMode("signin");
+                    setLoginForm({ email: cred.email, password: cred.password });
+                    setError("");
+                  }}
+                  className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors"
                 >
-                  🔑 Password
-                </button>
-                <button
-                  className={`auth-method-tab ${loginMethod === "otp" ? "auth-method-tab-active" : ""}`}
-                  type="button"
-                  onClick={() => { setLoginMethod("otp"); setOtpLoginStep("email"); clearMessages(); }}
-                >
-                  📧 Email OTP
+                  Auto-fill
                 </button>
               </div>
-
-              {loginMethod === "password" && (
-                <form className="auth-form" onSubmit={handlePasswordLogin}>
-                  <label className="field-block">
-                    <span>Email</span>
-                    <input
-                      className="text-input"
-                      type="email"
-                      value={loginForm.email}
-                      onChange={handleLoginChange("email")}
-                    />
-                  </label>
-                  <label className="field-block">
-                    <span>Password</span>
-                    <input
-                      className="text-input"
-                      type="password"
-                      value={loginForm.password}
-                      onChange={handleLoginChange("password")}
-                    />
-                  </label>
-                  {error && <p className="form-error">{error}</p>}
-                  {feedback && <p className="form-success">{feedback}</p>}
-                  <button className="button button-primary wide" disabled={isSubmitting} type="submit">
-                    {isSubmitting ? "Signing in..." : "Enter portal"}
-                  </button>
-                </form>
-              )}
-
-              {loginMethod === "otp" && otpLoginStep === "email" && (
-                <form className="auth-form" onSubmit={handleSendLoginOtp}>
-                  <p className="auth-otp-hint">
-                    Enter your registered email and we'll send a one-time login code.
-                    OTP login requires your email to be verified during registration.
-                  </p>
-                  <label className="field-block">
-                    <span>Email</span>
-                    <input
-                      className="text-input"
-                      type="email"
-                      value={otpEmail}
-                      placeholder="your@email.com"
-                      onChange={(e) => setOtpEmail(e.target.value)}
-                    />
-                  </label>
-                  {error && <p className="form-error">{error}</p>}
-                  {feedback && <p className="form-success">{feedback}</p>}
-                  <button className="button button-primary wide" disabled={isSubmitting} type="submit">
-                    {isSubmitting ? "Sending..." : "Send OTP"}
-                  </button>
-                </form>
-              )}
-
-              {loginMethod === "otp" && otpLoginStep === "code" && (
-                <form className="auth-form" onSubmit={handleVerifyLoginOtp}>
-                  <p className="auth-otp-hint">
-                    Enter the 6-digit code sent to <strong>{otpEmail}</strong>. Valid for 10 minutes.
-                  </p>
-                  <label className="field-block">
-                    <span>One-time code</span>
-                    <input
-                      className="text-input auth-otp-input"
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={otpCode}
-                      placeholder="000000"
-                      autoFocus
-                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    />
-                  </label>
-                  {error && <p className="form-error">{error}</p>}
-                  {feedback && <p className="form-success">{feedback}</p>}
-                  <button className="button button-primary wide" disabled={isSubmitting} type="submit">
-                    {isSubmitting ? "Verifying..." : "Verify & Sign In"}
-                  </button>
-                  <button
-                    className="auth-resend-btn"
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => { setOtpLoginStep("email"); setOtpCode(""); clearMessages(); }}
-                  >
-                    ← Change email or resend code
-                  </button>
-                </form>
-              )}
-            </>
-          )}
-
-          {/* ── REGISTER ── */}
-          {mode === "register" && (
-            <>
-              {registerStep === "form" && (
-                <form className="auth-form" onSubmit={handleRegister}>
-                  <label className="field-block">
-                    <span>Full name</span>
-                    <input
-                      className="text-input"
-                      type="text"
-                      value={registerForm.name}
-                      onChange={handleRegisterChange("name")}
-                    />
-                  </label>
-                  <label className="field-block">
-                    <span>Email</span>
-                    <input
-                      className="text-input"
-                      type="email"
-                      value={registerForm.email}
-                      onChange={handleRegisterChange("email")}
-                    />
-                  </label>
-                  <label className="field-block">
-                    <span>Phone</span>
-                    <input
-                      className="text-input"
-                      type="tel"
-                      value={registerForm.phone}
-                      onChange={handleRegisterChange("phone")}
-                    />
-                  </label>
-                  <label className="field-block">
-                    <span>Password</span>
-                    <input
-                      className="text-input"
-                      type="password"
-                      value={registerForm.password}
-                      onChange={handleRegisterChange("password")}
-                    />
-                  </label>
-                  {error && <p className="form-error">{error}</p>}
-                  {feedback && <p className="form-success">{feedback}</p>}
-                  <button className="button button-primary wide" disabled={isSubmitting} type="submit">
-                    {isSubmitting ? "Creating account..." : "Create patient account"}
-                  </button>
-                </form>
-              )}
-
-              {registerStep === "verify" && (
-                <form className="auth-form" onSubmit={handleVerifyRegistration}>
-                  <div className="auth-verify-banner">
-                    <span className="auth-verify-icon">✉️</span>
-                    <div>
-                      <p>A verification code was sent to</p>
-                      <strong>{pendingEmail}</strong>
-                      <p className="auth-verify-note">Enter the 6-digit code below to activate your account.</p>
-                    </div>
-                  </div>
-                  <label className="field-block">
-                    <span>Verification code</span>
-                    <input
-                      className="text-input auth-otp-input"
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={6}
-                      value={registerOtpCode}
-                      placeholder="000000"
-                      autoFocus
-                      onChange={(e) => setRegisterOtpCode(e.target.value.replace(/\D/g, ""))}
-                    />
-                  </label>
-                  {error && <p className="form-error">{error}</p>}
-                  {feedback && <p className="form-success">{feedback}</p>}
-                  <button className="button button-primary wide" disabled={isSubmitting} type="submit">
-                    {isSubmitting ? "Verifying..." : "Verify & Activate Account"}
-                  </button>
-                  <button
-                    className="auth-resend-btn"
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={handleResendRegisterOtp}
-                  >
-                    Resend verification code
-                  </button>
-                </form>
-              )}
-            </>
-          )}
-        </article>
-
-        <article className="panel demo-panel">
-          <SectionHeading
-            eyebrow="Quick testing"
-            title="Seeded demo credentials"
-            subtitle="These accounts are available immediately for platform testing."
-          />
-          <div className="demo-credential-list">
-            {demoCredentials.map((credential) => (
-              <article className="demo-credential" key={credential.role}>
-                <strong>{credential.role}</strong>
-                <p>{credential.email}</p>
-                <code>{credential.password}</code>
-              </article>
-            ))}
-          </div>
-        </article>
-      </div>
-    </section>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
   );
 }
