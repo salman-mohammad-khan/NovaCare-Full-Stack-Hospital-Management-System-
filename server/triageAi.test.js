@@ -17,7 +17,7 @@ const DOCTORS = SPECIALTIES.map((specialty, index) => ({
 
 const realFetch = globalThis.fetch;
 const realWarn = console.warn;
-const ENV_KEYS = ["AWS_BEARER_TOKEN_BEDROCK", "BEDROCK_TRIAGE", "BEDROCK_MODEL_ID", "BEDROCK_MAY_DOWNGRADE", "BEDROCK_LOCAL_FALLBACK", "LLM_ENABLED"];
+const ENV_KEYS = ["AWS_BEARER_TOKEN_BEDROCK", "BEDROCK_TRIAGE", "BEDROCK_MODEL_ID", "BEDROCK_MAY_DOWNGRADE", "BEDROCK_LOCAL_FALLBACK", "BEDROCK_ASK_FOLLOWUP", "LLM_ENABLED"];
 let calls;
 let warnings;
 
@@ -268,5 +268,82 @@ describe("the assistant with Bedrock on", () => {
     const result = await getTriageResponse({ messages: say("I have stomach pain since 3 days"), doctors: DOCTORS });
     assert.equal(calls.length, 0);
     assert.equal(result.meta.route, "rules");
+  });
+});
+
+describe("asking for a few more details", () => {
+  const vague = (over = {}) =>
+    triageJson({ area: "a stomach or digestion problem", ask: true, questions: ["How long has this been going on?", "Do you also have fever or vomiting?"], ...over });
+
+  test("parseTriage keeps area, ask and at most two questions, and adds the question mark", () => {
+    const parsed = parseTriage(vague({ questions: ["How long", "Any fever?", "Third one?"] }), SPECIALTIES);
+    assert.equal(parsed.area, "a stomach or digestion problem");
+    assert.equal(parsed.ask, true);
+    assert.deepEqual(parsed.questions, ["How long?", "Any fever?"]);
+  });
+
+  test("ask without any question, or for a non-health message, does not count", () => {
+    assert.equal(parseTriage(vague({ questions: [] }), SPECIALTIES).ask, false);
+    assert.equal(parseTriage(vague({ specialty: "None" }), SPECIALTIES).ask, false);
+  });
+
+  test("a vague first message gets the likely area, a tentative specialist and the questions", async () => {
+    fakeBedrock((kind) => (kind === "safety" ? safetyJson("NONE") : vague()));
+    const result = await getTriageResponse({ messages: say("my stomach hurts"), doctors: DOCTORS });
+    assert.equal(result.meta.route, "bedrock-asking");
+    assert.equal(result.recommendation.tentative, true);
+    assert.equal(result.recommendation.doctorName, "Dr. Gastroenterology");
+    assert.match(result.message, /this could be related to a stomach or digestion problem/);
+    assert.match(result.message, /good starting point/);
+    assert.match(result.message, /How long has this been going on\?/);
+    assert.doesNotMatch(result.message, /I suggest booking/);
+  });
+
+  test("it asks only once: after an assistant question the answer is final", async () => {
+    fakeBedrock((kind) => (kind === "safety" ? safetyJson("NONE") : vague()));
+    const messages = [
+      { role: "user", content: "my stomach hurts" },
+      { role: "assistant", content: "A few more details would help: How long has this been going on?" },
+      { role: "user", content: "3 days, with vomiting" },
+    ];
+    const result = await getTriageResponse({ messages, doctors: DOCTORS });
+    assert.equal(result.recommendation.tentative, false);
+    assert.match(result.message, /I suggest booking/);
+  });
+
+  test("it stops asking once the patient has sent three messages", async () => {
+    fakeBedrock((kind) => (kind === "safety" ? safetyJson("NONE") : vague()));
+    const messages = ["pain", "stomach", "since yesterday"].map((content) => ({ role: "user", content }));
+    const result = await getTriageResponse({ messages, doctors: DOCTORS });
+    assert.equal(result.recommendation.tentative, false);
+  });
+
+  test("an emergency never waits for questions", async () => {
+    fakeBedrock((kind) => (kind === "safety" ? safetyJson("EMERGENCY") : vague()));
+    const result = await getTriageResponse({ messages: say("he went quiet and his body looks wrong"), doctors: DOCTORS });
+    assert.equal(result.recommendation.priority, "Emergency");
+    assert.doesNotMatch(result.message, /a few more details/);
+  });
+
+  test("BEDROCK_ASK_FOLLOWUP=false turns the questions off", async () => {
+    process.env.BEDROCK_ASK_FOLLOWUP = "false";
+    fakeBedrock((kind) => (kind === "safety" ? safetyJson("NONE") : vague()));
+    const result = await getTriageResponse({ messages: say("my stomach hurts"), doctors: DOCTORS });
+    assert.equal(result.recommendation.tentative, false);
+    assert.match(result.message, /I suggest booking/);
+  });
+
+  test("a message that already says how long is not asked again", async () => {
+    fakeBedrock((kind) => (kind === "safety" ? safetyJson("NONE") : vague()));
+    const result = await getTriageResponse({ messages: say("my stomach hurts since 3 days"), doctors: DOCTORS });
+    assert.equal(result.recommendation.tentative, false);
+    assert.doesNotMatch(result.message, /a few more details/);
+  });
+
+  test("a clear message gets the area line and the advice in the normal reply", async () => {
+    fakeBedrock((kind) => (kind === "safety" ? safetyJson("NONE") : triageJson({ area: "a stomach or digestion problem" })));
+    const result = await getTriageResponse({ messages: say("I have stomach pain since 3 days, no fever"), doctors: DOCTORS });
+    assert.equal(result.recommendation.tentative, false);
+    assert.match(result.message, /this could be related to a stomach or digestion problem\. Rest and drink fluids/);
   });
 });

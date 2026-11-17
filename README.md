@@ -56,8 +56,9 @@ The chat widget helps a patient choose a doctor. With an Amazon Bedrock key it u
 1. **Emergencies get a fixed message.** Chest pain with sweating, stroke signs, trouble breathing, heavy bleeding, fainting, seizures, severe allergic reactions, poisoning, newborn fever and thoughts of suicide: call 108 (or 112), plus the Tele-MANAS helpline for self-harm. The word rules fire first and are never skipped. With Bedrock on, a separate model check and the triage call can raise an emergency the rules missed (for example "mere bete ko daura pad raha hai"). Optionally (`BEDROCK_MAY_DOWNGRADE=true`) two clear "not an emergency" answers can cancel a rule's false alarm, never a self-harm one.
 2. **Keyword rules pick the specialty and priority** when they are confident (English and Hinglish, children go to pediatrics, negations such as "no fever" are handled).
 3. **With a Bedrock key, one hosted-model call per message** (gpt-oss 20B, low reasoning effort, about 1.5 s) returns the specialty, urgency, a short reason and symptom summary for the booking form, and two sentences of general advice. The doctor is always chosen here, in code, from the real catalogue, so the model cannot invent one, and advice that promises a booking or contains a dose is thrown away. Without a key the rules decide, and a small local model (`qwen3.5:2b` through Ollama) is asked only when they are unsure. If Bedrock is down, the rules and templates answer (the local model only if `BEDROCK_LOCAL_FALLBACK=true`).
-4. **Replies** are the model's advice followed by the doctor and the next step, or a fixed template when there is no model. A 2B local model promised things ("we have scheduled your appointment"), so its replies stay off unless `LLM_REPLY=true`.
-5. The result is a recommendation card that pre-fills the booking form. The assistant never diagnoses and always says so.
+4. **It asks before it commits when the message is vague.** The reply says what the symptoms could be related to (a plain-language area, never a diagnosis) and which specialist is a good starting point. If the message is too general to be sure ("I have pain", "I have fever") it also asks one or two short questions, and the card says "Likely specialist (may change as you answer)". It asks at most once, never when the message already says how long it has lasted, never in an emergency, and `BEDROCK_ASK_FOLLOWUP=false` switches it off.
+5. **Replies** are the model's advice followed by the doctor and the next step, or a fixed template when there is no model. A 2B local model promised things ("we have scheduled your appointment"), so its replies stay off unless `LLM_REPLY=true`.
+6. The result is a recommendation card that pre-fills the booking form. The assistant never diagnoses and always says so.
 
 **How well it works.** `npm run bench` measures the assistant on 96 labelled messages in `server/benchmark/cases.json` (English, Hindi and Hinglish; 11 emergencies). 66 came from a code audit and shaped the prompts; 30 were written afterwards and measured once before tuning. The labels are my own and some are arguable, so treat the figures as a guide, not a clinical result. Fully right means both specialty and priority match:
 
@@ -66,6 +67,8 @@ The chat widget helps a patient choose a doctor. With an Amazon Bedrock key it u
 | Rules only | 32 | 18 |
 | Rules + hosted model (default) | 50 | 25 |
 | Rules + hosted model, `BEDROCK_MAY_DOWNGRADE=true` | 53 | 26 |
+
+Asking questions was measured separately, with a second model playing the patient (it is told the true story, so it is a rough stand-in for real patients). On 32 deliberately vague first messages (`server/benchmark/vague.json`, `vague-fresh.json`; `node server/benchmark/vague.mjs [--fresh]`) answering at once was fully right 19 times and asking first 26 times; the second file (12 messages) was written after tuning and measured once: 7 against 9. On the 96 mostly-clear messages above it asks in about 20% of them and the score is unchanged (78 of 96 both ways).
 
 Emergencies were called Emergency in 11 of 11 cases with the hosted model (2 of 6 and 3 of 5 with rules only). Where the rules were wrong most often: false emergencies on questions ("how to avoid food poisoning"), no Hinglish seizure wording, and ignoring negation for the specialty. An earlier 46-message test, not kept in this repository, reported about 91% for rules plus the local 2B model; on this set the same rules score about 52%. Bedrock allows about 100 requests a minute per model on this account, and each message makes two calls.
 
@@ -168,7 +171,7 @@ server/
   bedrock.js        Minimal Amazon Bedrock client over fetch
   triage.test.js    Tests for the rules and the local flow (npm test)
   triageAi.test.js  Tests for the Bedrock client and path with a fake model
-  benchmark/        96 labelled messages and the runner (npm run bench)
+  benchmark/        96 labelled messages and the runner (npm run bench), plus the vague-message sets (vague.mjs)
   db.js             MongoDB connection
   seedData.js       Seed doctors, users and appointments
 src/
