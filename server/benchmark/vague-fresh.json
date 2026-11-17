@@ -1,0 +1,17 @@
+{
+  "note": "A second set of deliberately vague first messages, written after the prompt was tuned on vague.json and measured once. 'hidden' is what the patient says if asked. Labels are the author's.",
+  "cases": [
+    { "first": "I feel something is wrong", "hidden": "burning in my chest after meals and a sour taste, for 2 weeks", "specialty": "Gastroenterology", "priority": "Routine" },
+    { "first": "I need to see a doctor", "hidden": "my 6 year old has itchy red patches on his elbows for a month", "specialty": "Pediatrics", "priority": "Routine" },
+    { "first": "my head", "hidden": "one side throbbing headache with nausea for two days, it happens every month", "specialty": "Neurology", "priority": "Routine" },
+    { "first": "leg problem", "hidden": "swollen painful knee after a fall yesterday, I can walk with pain", "specialty": "Orthopedics", "priority": "Routine" },
+    { "first": "I am always thirsty", "hidden": "very thirsty, urinating often and losing weight for a month", "specialty": "Endocrinology", "priority": "Routine" },
+    { "first": "feeling anxious", "hidden": "heart racing and fear in crowds, cannot concentrate, for 2 months", "specialty": "Psychiatry", "priority": "Routine" },
+    { "first": "ear", "hidden": "ear pain and a blocked ear for 3 days after a cold", "specialty": "ENT", "priority": "Routine" },
+    { "first": "cough", "hidden": "dry cough and wheeze at night for 3 weeks, no fever", "specialty": "Pulmonology", "priority": "Routine" },
+    { "first": "I want a check up", "hidden": "full body checkup, I am 45, no complaints", "specialty": "General Medicine", "priority": "Routine" },
+    { "first": "urine problem", "hidden": "passing very little urine since yesterday, swelling in my legs, belly hurts", "specialty": "Nephrology", "priority": "Urgent" },
+    { "first": "pregnancy", "hidden": "I am 10 weeks pregnant and want my first antenatal checkup", "specialty": "Gynecology", "priority": "Routine" },
+    { "first": "mere pet me kuch hai", "hidden": "pet me gas aur khatti dakar aati hai 1 hafte se", "specialty": "Gastroenterology", "priority": "Routine" }
+  ]
+}

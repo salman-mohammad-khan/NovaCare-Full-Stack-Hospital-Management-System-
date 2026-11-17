@@ -1,0 +1,125 @@
+{
+ "note": "Deliberately vague first messages. 'hidden' is what the patient would say if asked (used by the simulated patient). Labels are the author's.",
+ "cases": [
+  {
+   "first": "I am not feeling well",
+   "hidden": "burning while passing urine and pain in my lower back for 3 days",
+   "specialty": "Nephrology",
+   "priority": "Routine"
+  },
+  {
+   "first": "I have a problem with my stomach",
+   "hidden": "burning after spicy food, acidity for 2 weeks, no fever or vomiting",
+   "specialty": "Gastroenterology",
+   "priority": "Routine"
+  },
+  {
+   "first": "my child is sick",
+   "hidden": "my 4 year old has fever for 2 days and is not eating, no trouble breathing",
+   "specialty": "Pediatrics",
+   "priority": "Routine"
+  },
+  {
+   "first": "I have pain",
+   "hidden": "pain in my knee joint when climbing stairs for a month",
+   "specialty": "Orthopedics",
+   "priority": "Routine"
+  },
+  {
+   "first": "my skin has a problem",
+   "hidden": "itchy red rash on my arm for a week",
+   "specialty": "Dermatology",
+   "priority": "Routine"
+  },
+  {
+   "first": "I feel very tired",
+   "hidden": "tired all the time, gained weight, my mother has thyroid, for 2 months",
+   "specialty": "Endocrinology",
+   "priority": "Routine"
+  },
+  {
+   "first": "I get headaches",
+   "hidden": "one side headache with nausea every week for months",
+   "specialty": "Neurology",
+   "priority": "Routine"
+  },
+  {
+   "first": "I feel breathless",
+   "hidden": "wheezing cough at night, worse near dust, for 2 weeks",
+   "specialty": "Pulmonology",
+   "priority": "Routine"
+  },
+  {
+   "first": "something is wrong with my heart",
+   "hidden": "heart beats very fast when I climb stairs, sometimes dizzy, for a month",
+   "specialty": "Cardiology",
+   "priority": "Routine"
+  },
+  {
+   "first": "I am not able to sleep",
+   "hidden": "no sleep for 2 weeks, constant tension and worry, feeling low",
+   "specialty": "Psychiatry",
+   "priority": "Routine"
+  },
+  {
+   "first": "my throat",
+   "hidden": "sore throat and pain while swallowing for 3 days, no fever",
+   "specialty": "ENT",
+   "priority": "Routine"
+  },
+  {
+   "first": "period problem",
+   "hidden": "periods irregular for 4 months and white discharge",
+   "specialty": "Gynecology",
+   "priority": "Routine"
+  },
+  {
+   "first": "I have fever",
+   "hidden": "fever of 104 for 5 days with body ache",
+   "specialty": "General Medicine",
+   "priority": "Urgent"
+  },
+  {
+   "first": "I have swelling",
+   "hidden": "swelling in feet and face in the morning, foamy urine, for a week",
+   "specialty": "Nephrology",
+   "priority": "Routine"
+  },
+  {
+   "first": "my mother is not well",
+   "hidden": "my 70 year old mother fell yesterday and her hip hurts, she can walk",
+   "specialty": "Orthopedics",
+   "priority": "Routine"
+  },
+  {
+   "first": "baby problem",
+   "hidden": "my 3 month old baby has cough and cold for 2 days, feeding well",
+   "specialty": "Pediatrics",
+   "priority": "Routine"
+  },
+  {
+   "first": "my sugar",
+   "hidden": "blood sugar is always high in the morning, around 180, I am diabetic, for weeks",
+   "specialty": "Endocrinology",
+   "priority": "Routine"
+  },
+  {
+   "first": "I feel dizzy",
+   "hidden": "dizzy and weak for 2 days, mild fever, ate very little",
+   "specialty": "General Medicine",
+   "priority": "Routine"
+  },
+  {
+   "first": "stomach pain",
+   "hidden": "severe stomach pain since last night, cannot stand straight, vomiting",
+   "specialty": "Gastroenterology",
+   "priority": "Urgent"
+  },
+  {
+   "first": "mujhe problem hai",
+   "hidden": "kamar me dard hai 2 hafte se, jhukne par badhta hai",
+   "specialty": "Orthopedics",
+   "priority": "Routine"
+  }
+ ]
+}

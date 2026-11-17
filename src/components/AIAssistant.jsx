@@ -184,7 +184,9 @@ export default function AIAssistant() {
           {/* Recommendation */}
           {recommendation && (
             <div className={`p-4 border-t ${recBg}`}>
-              <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">Recommended Specialist</p>
+              <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
+                {recommendation.tentative ? "Likely specialist (may change as you answer)" : "Recommended Specialist"}
+              </p>
               <p className="text-sm font-bold text-ink">{recommendation.doctorName}</p>
               <p className="text-xs text-ink-soft">{recommendation.specialty}</p>
               <div className="flex gap-1.5 mt-2 mb-3">

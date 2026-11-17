@@ -242,7 +242,7 @@ function trimTo(value, max) {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
-function buildRecommendation({ doctor, priority, firstUser, latest, ai }) {
+function buildRecommendation({ doctor, priority, firstUser, latest, ai, tentative = false }) {
   const teleFriendly = ["Psychiatry", "Endocrinology"].includes(doctor.specialty);
   return {
     doctorId: doctor.id,
@@ -252,13 +252,20 @@ function buildRecommendation({ doctor, priority, firstUser, latest, ai }) {
     priority,
     reasonForVisit: trimTo(ai?.reason || firstUser || latest, 80),
     suggestedSymptoms: trimTo(ai?.symptoms || latest, 300),
+    // true while the assistant is still asking for details, so the widget can say the specialist may change
+    tentative,
   };
 }
 
 const TRIVIAL = /^(hi|hii|hello|hey|namaste|thanks|thank you|thankyou|ok|okay|bye)\W*$/i;
 
+// A message that already says how long it has lasted is not asked "how long?" again, even if the model wants to.
+const STATES_DURATION =
+  /(\d+\s*(days?|weeks?|months?|years?|hours?|din|hafte|hafta|mahine|mahina|saal|ghante)|\bsince\b|for the (last|past)|\bkal se\b|\bfrom yesterday\b|last night|this morning|\btoday\b|\ba week\b|\ba month\b|\btwo days\b|\bthree days\b)/i;
+const statesDuration = (text) => STATES_DURATION.test(text) && text.trim().split(/\s+/).length >= 4;
+
 // The hosted-model path. Returns null when Bedrock is off, down or unreadable, so the rules and local model run instead.
-async function bedrockPath({ doctors, rules, userMessages, latest, meta, done }) {
+async function bedrockPath({ messages, doctors, rules, userMessages, latest, meta, done }) {
   if (!bedrockEnabled() || latest.trim().length < 4 || TRIVIAL.test(latest.trim())) {
     return null;
   }
@@ -309,9 +316,21 @@ async function bedrockPath({ doctors, rules, userMessages, latest, meta, done })
     meta.route = "no-doctor";
     return done("I could not find an available doctor right now. Please try again later or contact the clinic from the Contact page.", null);
   }
-  const recommendation = buildRecommendation({ doctor, priority, firstUser: userMessages[0], latest, ai: triage });
+  // Ask for a few more details once, and only when the model says they would change the recommendation. The doctor is still
+  // shown, marked as tentative. After one round of questions (or a long chat) the assistant always gives its answer.
+  const alreadyAsked = messages.some((message) => message.role === "assistant" && String(message.content).includes("?"));
+  const asking = process.env.BEDROCK_ASK_FOLLOWUP !== "false" && triage.ask && !alreadyAsked && userMessages.length < 3 && !statesDuration(latest);
+  const recommendation = buildRecommendation({ doctor, priority, firstUser: userMessages[0], latest, ai: triage, tentative: asking });
+  const pointer = triage.area ? `From what you've told me, this could be related to ${triage.area}. ` : "";
+  if (asking) {
+    meta.route = "bedrock-asking";
+    return done(
+      `${pointer}${doctor.name} (${doctor.specialty}) looks like a good starting point, but a few more details would help me be sure: ${triage.questions.join(" ")} ${DISCLAIMER}`,
+      recommendation,
+    );
+  }
   const reply = triage?.advice
-    ? `${triage.advice} ${priority === "Urgent" ? "I suggest booking the earliest slot with" : "I suggest booking an appointment with"} ${doctor.name} (${doctor.specialty}).`
+    ? `${pointer}${triage.advice} ${priority === "Urgent" ? "I suggest booking the earliest slot with" : "I suggest booking an appointment with"} ${doctor.name} (${doctor.specialty}).`
     : fallbackReply({ doctor, priority });
   return done(`${reply} ${DISCLAIMER}`, recommendation);
 }
@@ -331,7 +350,7 @@ export async function getTriageResponse({ messages, doctors }) {
   const done = (message, recommendation) => ({ message, recommendation, meta: { ...meta, ms: Date.now() - started } });
 
   // 0) hosted model first when a Bedrock key is set; null means it is off or down, so the steps below run
-  const viaBedrock = await bedrockPath({ doctors, rules, userMessages, latest, meta, done });
+  const viaBedrock = await bedrockPath({ messages, doctors, rules, userMessages, latest, meta, done });
   if (viaBedrock) {
     return viaBedrock;
   }
