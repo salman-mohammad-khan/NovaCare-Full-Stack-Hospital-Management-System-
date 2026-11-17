@@ -96,7 +96,8 @@ export default function AIAssistant() {
       state: {
         aiPrefill: {
           consultMode: recommendation.consultMode,
-          priority: recommendation.priority,
+          // the booking form has Routine, Priority and Urgent only, so an emergency becomes an urgent follow-up request
+          priority: recommendation.priority === "Emergency" ? "Urgent" : recommendation.priority,
           reason: recommendation.reasonForVisit,
           symptoms: recommendation.suggestedSymptoms,
         },
@@ -137,7 +138,7 @@ export default function AIAssistant() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">NovaCare Health Assistant</p>
-              <p className="text-xs text-white/70">Online &middot; Rule-based triage with a local AI model</p>
+              <p className="text-xs text-white/70">Online &middot; AI triage with safety rules</p>
             </div>
             <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/10 rounded-lg transition-colors" aria-label="Close">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -202,8 +203,13 @@ export default function AIAssistant() {
                   Note: This doctor might not be available right now. Contact the care desk or browse other specialists.
                 </p>
               )}
+              {recommendation.priority === "Emergency" && (
+                <p className="text-[11px] font-semibold text-red-700 dark:text-red-300 mb-2">
+                  If this is happening now, call 108 or 112 first. Booking is only for a follow-up.
+                </p>
+              )}
               <button onClick={handleBookNow} className="w-full py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
-                Book this doctor &rarr;
+                {recommendation.priority === "Emergency" ? "Book a follow-up" : "Book this doctor"} &rarr;
               </button>
             </div>
           )}

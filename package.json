@@ -10,7 +10,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test server/triage.test.js"
+    "test": "node --test server/triage.test.js server/triageAi.test.js",
+    "bench": "node server/benchmark/run.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
