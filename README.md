@@ -51,15 +51,23 @@ Completed appointments are locked from further changes.
 
 ## Health assistant
 
-The chat widget helps a patient choose a doctor. It runs entirely on the same machine, with no external AI service.
+The chat widget helps a patient choose a doctor. With an Amazon Bedrock key it uses a hosted model (gpt-oss 20B) for the specialty, urgency and a short piece of advice; without one it uses the rules and a small local model on the same machine.
 
-1. **Emergency rules answer first and instantly.** Chest pain with sweating, stroke signs, trouble breathing, heavy bleeding, fainting, seizures, severe allergic reactions, poisoning, newborn fever and thoughts of suicide get a fixed message: call 108 (or 112), plus the Tele-MANAS helpline for self-harm. They never wait for a model.
+1. **Emergencies get a fixed message.** Chest pain with sweating, stroke signs, trouble breathing, heavy bleeding, fainting, seizures, severe allergic reactions, poisoning, newborn fever and thoughts of suicide: call 108 (or 112), plus the Tele-MANAS helpline for self-harm. The word rules fire first and are never skipped. With Bedrock on, a separate model check and the triage call can raise an emergency the rules missed (for example "mere bete ko daura pad raha hai"). Optionally (`BEDROCK_MAY_DOWNGRADE=true`) two clear "not an emergency" answers can cancel a rule's false alarm, never a self-harm one.
 2. **Keyword rules pick the specialty and priority** when they are confident (English and Hinglish, children go to pediatrics, negations such as "no fever" are handled).
-3. **A small local model decides only the unsure cases.** `qwen3.5:2b` (through Ollama) is asked for a specialty and urgency as strict JSON. If the model is slow, busy or switched off, the rules' best guess is used, so the assistant always answers.
-4. **Replies are fixed templates** that name the doctor and what that doctor covers. A 2B model wrote friendlier replies in testing but promised things ("we have scheduled your appointment") and repeated symptoms the patient never mentioned, so model-written replies are off unless `LLM_REPLY=true`.
+3. **With a Bedrock key, one hosted-model call per message** (gpt-oss 20B, low reasoning effort, about 1.5 s) returns the specialty, urgency, a short reason and symptom summary for the booking form, and two sentences of general advice. The doctor is always chosen here, in code, from the real catalogue, so the model cannot invent one, and advice that promises a booking or contains a dose is thrown away. Without a key the rules decide, and a small local model (`qwen3.5:2b` through Ollama) is asked only when they are unsure. If Bedrock is down, the rules and templates answer (the local model only if `BEDROCK_LOCAL_FALLBACK=true`).
+4. **Replies** are the model's advice followed by the doctor and the next step, or a fixed template when there is no model. A 2B local model promised things ("we have scheduled your appointment"), so its replies stay off unless `LLM_REPLY=true`.
 5. The result is a recommendation card that pre-fills the booking form. The assistant never diagnoses and always says so.
 
-It was chosen by testing five local models (1.7B to 4B parameters) on the VM's two CPU cores with 46 labelled messages written for this project, including Hinglish and ten emergencies. Letting a small model decide everything from a long prompt was the worst option (30 to 70% fully correct, 20 to 80 seconds per answer). Rules first with `qwen3.5:2b` as the fallback reached about 91% fully correct, and cases the rules are confident about answer instantly. A 4B model as the classifier reached 96% but took about 35 seconds. Those cases are my own labels, so treat the figures as a guide, not a clinical result.
+**How well it works.** `npm run bench` measures the assistant on 96 labelled messages in `server/benchmark/cases.json` (English, Hindi and Hinglish; 11 emergencies). 66 came from a code audit and shaped the prompts; 30 were written afterwards and measured once before tuning. The labels are my own and some are arguable, so treat the figures as a guide, not a clinical result. Fully right means both specialty and priority match:
+
+| | Audit set (66) | Fresh set (30) |
+|---|---|---|
+| Rules only | 32 | 18 |
+| Rules + hosted model (default) | 50 | 25 |
+| Rules + hosted model, `BEDROCK_MAY_DOWNGRADE=true` | 53 | 26 |
+
+Emergencies were called Emergency in 11 of 11 cases with the hosted model (2 of 6 and 3 of 5 with rules only). Where the rules were wrong most often: false emergencies on questions ("how to avoid food poisoning"), no Hinglish seizure wording, and ignoring negation for the specialty. An earlier 46-message test, not kept in this repository, reported about 91% for rules plus the local 2B model; on this set the same rules score about 52%. Bedrock allows about 100 requests a minute per model on this account, and each message makes two calls.
 
 Chat messages are logged without any account details (session id, route, chosen specialty, the patient's last message trimmed to 300 characters) and deleted automatically after 30 days.
 
@@ -71,7 +79,7 @@ Chat messages are logged without any account details (session id, route, chosen 
 | Backend | Node.js, Express 5 |
 | Database | MongoDB (official driver) |
 | Auth | JSON Web Tokens, bcryptjs |
-| Assistant | Rule engine plus a small local LLM through Ollama (`qwen3.5:2b`) |
+| Assistant | Rule engine plus gpt-oss 20B on Amazon Bedrock (or a small local LLM through Ollama without a key) |
 | Hosting | Oracle Cloud Always Free (Arm), Caddy, systemd |
 
 ---
@@ -105,6 +113,12 @@ JWT_EXPIRES_IN=24h
 CORS_ORIGIN=
 
 # Health assistant (works with rules alone if the model is unreachable)
+# Amazon Bedrock (optional, create a Bedrock API key in the AWS console and keep it out of git)
+# AWS_BEARER_TOKEN_BEDROCK=
+# BEDROCK_REGION=ap-south-1
+# BEDROCK_MODEL_ID=openai.gpt-oss-20b-1:0
+# BEDROCK_MAY_DOWNGRADE=false
+# BEDROCK_LOCAL_FALLBACK=false
 LLM_ENABLED=true
 LLM_BASE_URL=http://127.0.0.1:11434
 LOCAL_LLM_MODEL=qwen3.5:2b
@@ -138,7 +152,7 @@ The sign-in page also lists these with one-click auto-fill. More doctor and pati
 | `PATCH /api/appointments/:id/doctor` | Doctor |
 | `POST /api/doctors/upsert`, `PATCH /api/doctors/:id/availability` | Admin |
 | `POST /api/contact-messages` | Public or signed in |
-| `POST /api/ai-assistant` | Public, rate limited (rules plus the local model) |
+| `POST /api/ai-assistant` | Public, rate limited (rules plus Bedrock or the local model) |
 | `POST /api/reset` | Admin |
 
 ---
@@ -149,8 +163,12 @@ The sign-in page also lists these with one-click auto-fill. More doctor and pati
 server/
   index.js          Express app and API routes
   triageRules.js    Emergency, specialty and priority rules (English and Hinglish)
-  triage.js         Health assistant: rules first, local model for unsure cases, templates as fallback
-  triage.test.js    Tests for the rules and the assistant flow (npm test)
+  triage.js         Health assistant: rules, Bedrock path, local model and templates as fallbacks
+  triageAi.js       Prompts and parsing for the hosted model (the doctor is still chosen in code)
+  bedrock.js        Minimal Amazon Bedrock client over fetch
+  triage.test.js    Tests for the rules and the local flow (npm test)
+  triageAi.test.js  Tests for the Bedrock client and path with a fake model
+  benchmark/        96 labelled messages and the runner (npm run bench)
   db.js             MongoDB connection
   seedData.js       Seed doctors, users and appointments
 src/

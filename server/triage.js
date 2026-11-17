@@ -1,9 +1,18 @@
-// NovaCare health assistant: rules decide first, a small local LLM helps only when the rules are unsure
-// and writes a short reply. Everything runs on the same machine (Ollama), no external AI service.
+// NovaCare health assistant. Rules decide emergencies first. When a Bedrock key is set, a hosted model (gpt-oss 20B)
+// picks the specialty, urgency and short advice and a second model call checks for emergencies and self-harm; the doctor
+// is always chosen here, in code. Without a key (or when Bedrock is down) the rules and a small local model (Ollama)
+// answer as before.
 import { decide } from "./triageRules.js";
+import { bedrockConfig, bedrockEnabled } from "./bedrock.js";
+import { GENERAL, PROMISES, safetyCheck, triageWithBedrock } from "./triageAi.js";
+
+// With Bedrock on, the small local model is only a fallback when BEDROCK_LOCAL_FALLBACK=true: after a Bedrock failure the
+// rules and templates answer instead, because a 2B model gave wrong specialties in testing.
+const localModelAllowed = () =>
+  process.env.LLM_ENABLED !== "false" && (!bedrockEnabled() || process.env.BEDROCK_LOCAL_FALLBACK === "true");
 
 const llmConfig = () => ({
-  enabled: process.env.LLM_ENABLED !== "false",
+  enabled: localModelAllowed(),
   baseUrl: process.env.LLM_BASE_URL ?? "http://127.0.0.1:11434",
   model: process.env.LOCAL_LLM_MODEL ?? "qwen3.5:2b",
   timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? 30000),
@@ -11,7 +20,6 @@ const llmConfig = () => ({
   modelReplies: process.env.LLM_REPLY === "true",
 });
 
-const GENERAL = "General Medicine";
 const MAX_CONTEXT_MESSAGES = 3;
 const MAX_CONTEXT_CHARS = 600;
 const REPLY_TOKEN_CAP = 90;
@@ -160,9 +168,6 @@ function cleanReply(result) {
   return text;
 }
 
-// words a model must not use because nothing has been booked yet
-const PROMISES = /\b(scheduled|have booked|has been booked|booked for you|confirmed|we will arrange|arrange|look forward)\b/i;
-
 async function writeReplyWithLlm({ latest, doctor, priority }) {
   const result = await ollamaChat({
     system: REPLY_PROMPT,
@@ -176,7 +181,7 @@ async function writeReplyWithLlm({ latest, doctor, priority }) {
 
 /** Load the model into memory at startup so the first patient does not wait for a cold start. */
 export async function warmUpModel() {
-  if (!llmConfig().enabled) {
+  if (!localModelAllowed()) {
     return false;
   }
   const result = await ollamaChat({ system: "Reply with one word.", user: "ping", numPredict: 2 });
@@ -237,7 +242,7 @@ function trimTo(value, max) {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
-function buildRecommendation({ doctor, priority, firstUser, latest }) {
+function buildRecommendation({ doctor, priority, firstUser, latest, ai }) {
   const teleFriendly = ["Psychiatry", "Endocrinology"].includes(doctor.specialty);
   return {
     doctorId: doctor.id,
@@ -245,9 +250,70 @@ function buildRecommendation({ doctor, priority, firstUser, latest }) {
     specialty: doctor.specialty,
     consultMode: priority === "Routine" && teleFriendly ? "Tele-consult" : "In-clinic",
     priority,
-    reasonForVisit: trimTo(firstUser || latest, 80),
-    suggestedSymptoms: trimTo(latest, 300),
+    reasonForVisit: trimTo(ai?.reason || firstUser || latest, 80),
+    suggestedSymptoms: trimTo(ai?.symptoms || latest, 300),
   };
+}
+
+const TRIVIAL = /^(hi|hii|hello|hey|namaste|thanks|thank you|thankyou|ok|okay|bye)\W*$/i;
+
+// The hosted-model path. Returns null when Bedrock is off, down or unreadable, so the rules and local model run instead.
+async function bedrockPath({ doctors, rules, userMessages, latest, meta, done }) {
+  if (!bedrockEnabled() || latest.trim().length < 4 || TRIVIAL.test(latest.trim())) {
+    return null;
+  }
+  const turns = userMessages.slice(-MAX_CONTEXT_MESSAGES).map((turn) => turn.slice(0, MAX_CONTEXT_CHARS));
+  const [triage, safety] = await Promise.all([triageWithBedrock(turns, doctors), safetyCheck([latest])]);
+  if (!triage && !safety) {
+    return null;
+  }
+  meta.route = "bedrock";
+  meta.llmCalls = 2;
+  meta.model = bedrockConfig().model;
+
+  const selfHarm = rules.selfHarm || triage?.selfHarm === true || safety === "SELF_HARM";
+  let emergency = rules.emergency || triage?.urgency === "Emergency" || safety === "EMERGENCY" || selfHarm;
+  // Optional (off by default): when both model calls clearly say "not an emergency", let them cancel a rule's alarm. The rules
+  // have known false alarms ("how to avoid food poisoning"), but a rule firing is the safer default.
+  if (emergency && rules.emergency && !selfHarm && process.env.BEDROCK_MAY_DOWNGRADE === "true"
+      && triage && triage.urgency !== "Emergency" && safety === "NONE") {
+    emergency = false;
+  }
+
+  if (emergency) {
+    meta.route = rules.emergency ? "emergency-rules" : "emergency-model";
+    const doctor = pickDoctor(doctors, selfHarm ? "Psychiatry" : triage?.specialty ?? rules.specialty);
+    const recommendation = doctor
+      ? buildRecommendation({ doctor, priority: "Emergency", firstUser: userMessages[0], latest, ai: triage })
+      : null;
+    return done(emergencyReply({ selfHarm, doctor }), recommendation);
+  }
+
+  // the triage call failed but the safety check answered: no alarm was raised, so let the rules and templates answer
+  if (!triage) {
+    meta.llmCalls = 0;
+    meta.route = "";
+    return null;
+  }
+
+  // the model says this is not about the patient's health (timings, fees, thanks): no doctor, even if a keyword looked medical
+  if (triage.specialty === null) {
+    meta.route = "small-talk";
+    return done(smallTalkReply(latest), null);
+  }
+
+  const specialty = triage?.specialty ?? rules.specialty;
+  const priority = triage?.urgency === "Urgent" || rules.priority === "Urgent" ? "Urgent" : "Routine";
+  const doctor = pickDoctor(doctors, specialty);
+  if (!doctor) {
+    meta.route = "no-doctor";
+    return done("I could not find an available doctor right now. Please try again later or contact the clinic from the Contact page.", null);
+  }
+  const recommendation = buildRecommendation({ doctor, priority, firstUser: userMessages[0], latest, ai: triage });
+  const reply = triage?.advice
+    ? `${triage.advice} ${priority === "Urgent" ? "I suggest booking the earliest slot with" : "I suggest booking an appointment with"} ${doctor.name} (${doctor.specialty}).`
+    : fallbackReply({ doctor, priority });
+  return done(`${reply} ${DISCLAIMER}`, recommendation);
 }
 
 /**
@@ -263,6 +329,12 @@ export async function getTriageResponse({ messages, doctors }) {
   const rules = decide(context);
   const meta = { route: "", llmCalls: 0, model: llmConfig().model };
   const done = (message, recommendation) => ({ message, recommendation, meta: { ...meta, ms: Date.now() - started } });
+
+  // 0) hosted model first when a Bedrock key is set; null means it is off or down, so the steps below run
+  const viaBedrock = await bedrockPath({ doctors, rules, userMessages, latest, meta, done });
+  if (viaBedrock) {
+    return viaBedrock;
+  }
 
   // 1) not a health question: greet or explain booking, no model needed
   if (!rules.medical || (!rules.emergency && rules.score === 0 && latest.trim().length < 4)) {

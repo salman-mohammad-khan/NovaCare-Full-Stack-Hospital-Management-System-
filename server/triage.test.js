@@ -21,6 +21,9 @@ const DOCTORS = [
 
 const say = (text) => [{ role: "user", content: text }];
 
+// These tests are about the rules and the local model. A Bedrock key left in the shell must not turn them into live calls.
+delete process.env.AWS_BEARER_TOKEN_BEDROCK;
+
 describe("rules", () => {
   const emergencies = [
     "I have crushing chest pain spreading to my left arm for 20 minutes and I'm sweating a lot.",
