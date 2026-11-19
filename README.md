@@ -1,6 +1,6 @@
 ﻿# NovaCare Healthcare Solutions
 
-A full-stack hospital care-coordination app built with the MERN stack (MongoDB, Express, React, Node.js). Patients find a specialist and request a visit, admins run the request queue, and doctors close each visit with notes, a prescription and a follow-up date. It has three role-based portals, a doctor directory, light and dark themes, and a health assistant that suggests the right specialist (rules first, a small local AI model second).
+A full-stack hospital care-coordination app built with the MERN stack (MongoDB, Express, React, Node.js). Patients find a specialist and request a visit, admins run the request queue, and doctors close each visit with notes, a prescription and a follow-up date. It has three role-based portals, a doctor directory, light and dark themes, and a health assistant that suggests the right specialist (rules first, then a hosted model on Amazon Bedrock).
 
 **Live demo:** https://www.nova-care.xyz (runs on a free Oracle Cloud Always Free ARM VM behind Caddy HTTPS)
 
@@ -60,7 +60,7 @@ The chat widget helps a patient choose a doctor. With an Amazon Bedrock key it u
 5. **Replies** are the model's advice followed by the doctor and the next step, or a fixed template when there is no model. A 2B local model promised things ("we have scheduled your appointment"), so its replies stay off unless `LLM_REPLY=true`.
 6. The result is a recommendation card that pre-fills the booking form. The assistant never diagnoses and always says so.
 
-**How well it works.** `npm run bench` measures the assistant on 96 labelled messages in `server/benchmark/cases.json` (English, Hindi and Hinglish; 11 emergencies). 66 came from a code audit and shaped the prompts; 30 were written afterwards and measured once before tuning. The labels are my own and some are arguable, so treat the figures as a guide, not a clinical result. Fully right means both specialty and priority match:
+**How well it works.** `npm run bench` measures the assistant on 96 labelled messages in `server/benchmark/cases.json` (English, Hindi and Hinglish; 11 emergencies). 66 came from a code audit and shaped the prompts; 30 were written afterwards and measured once before tuning. The labels were written during development and some are arguable, so treat the figures as a guide, not a clinical result. Fully right means both specialty and priority match:
 
 | | Audit set (66) | Fresh set (30) |
 |---|---|---|
@@ -204,5 +204,5 @@ The Express server serves the built frontend and the API from one origin, so no 
 - Automated tests cover the rules and the assistant flow (`npm test`); there is no CI workflow or browser test suite in the repo yet.
 - Demo data is shared by everyone who uses the site. An admin can reset it from the footer.
 - There is no email: no email verification and no password reset. The demo uses seeded accounts, and a real deployment would add a transactional email service first.
-- The assistant's model runs on two CPU cores, so an unsure case takes several seconds and a busy server answers from templates.
+- Without a Bedrock key the assistant's model runs on two CPU cores, so an unsure case takes several seconds and a busy server answers from templates. Bedrock is limited to about 100 requests a minute per model.
 - This is a demo, not a medical product: it has no audit trail, no consent flow and no real-world compliance work.
